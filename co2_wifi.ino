@@ -6,6 +6,7 @@
 #include <Adafruit_SSD1306.h>
 
 #include "my_wifi.h"
+#include "NTPtime.h"
 
 /*
   // Using MHZ_19 && SPI on arduino nano:
@@ -64,7 +65,12 @@ void loop() {
   
   // ===========
   // handle wifi
-  handleWifi();
+  bool wifi_connected = handleWifi();
+  if (wifi_connected) {
+    NTPSetup();
+  }
+
+  
 
   // ==============
   // input wifi pwd
@@ -145,6 +151,9 @@ void loop() {
         display.println("warmup " + String(tijd / 1000) + " / " + String(WHZ_19B_WARMUP_TIME_MS / 1000));
       }
     }
+    
+    display.println("" + getStrDate() +" "+ getStrTime());
+    
     if (isMyWifiConnected()) {
       display.println("" + getMySSID());
       display.println("" + getMyIPAdress());

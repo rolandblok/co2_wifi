@@ -5,7 +5,7 @@
 
       
 bool   isMyWifiConnected();
-void   handleWifi();
+bool   handleWifi();
 void   connectSerialWifi();
 String getMySSID();
 String getMyIPAdress();

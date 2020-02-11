@@ -13,7 +13,7 @@ bool wifi_connected       = false;
 bool wifi_set_connecting  = true;   // need to be able to stop for manual connecting.
 
 bool isMyWifiConnected() {
-  return WiFi.status() == WL_CONNECTED;
+  return wifi_connected;
 }
 
 String getMyIPAdress(){
@@ -24,9 +24,9 @@ String getMySSID() {
 }
 /**
  * Try to connect to one of a couple of WiFi networks
+ * return true if connected
  */
-void handleWifi() {
-  static bool wifi_connected = false;
+bool handleWifi() {
   
   //WiFi.status() == WL_connected;
   if (!wifi_connected) {
@@ -45,6 +45,7 @@ void handleWifi() {
       
     }
   }  
+  return wifi_connected;
 }
 
 
