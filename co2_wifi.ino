@@ -4,9 +4,11 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <TimeLib.h>  
 
 #include "my_wifi.h"
 #include "NTPtime.h"
+#include "NASlog.h"
 
 /*
   // Using MHZ_19 && SPI on arduino nano:
@@ -95,6 +97,7 @@ void loop() {
   boolean measure_failed = false;
 
   static long last_meas_time = 0;
+  static long last_naslog_time = 0;
   long tijd = millis();
   if (tijd - last_meas_time >  1000) {
 
@@ -157,6 +160,13 @@ void loop() {
     if (isMyWifiConnected()) {
       display.println("" + getMySSID());
       display.println("" + getMyIPAdress());
+
+      // if warm and every minute : log to nas
+      if ((!warming_up) && (tijd - last_naslog_time >  60000)) {
+        nasDBLogCO2("esp8266", ppm, temperature);
+        last_naslog_time = millis();
+        
+      }
     } else {
       display.println("no wifi connection");
     }

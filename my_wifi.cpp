@@ -1,4 +1,6 @@
 #include "my_wifi.h"
+#include "NASlog.h"
+
 
 #define WIFI_AP_SSID_MAX_LEN (33)
 #define WIFI_AP_PWD_MAX_LEN  (64)
@@ -39,6 +41,7 @@ bool handleWifi() {
       if (wifiMulti.run() == WL_CONNECTED ) {
         wifi_connected = true;
         Serial.println("SSID: " + WiFi.SSID() + "; IP address: " + WiFi.localIP().toString());
+        nasDBLogConnection();
       } else {
         Serial.println(">>> WIFI connection failed");
       }
