@@ -54,7 +54,14 @@ void setup() {
   serial_mhz_19.begin(9600);
   Serial.println("started");
 
-  // display
+  //eeprom_clear();
+  eeprom_init();
+  eeprom_serial();
+
+  // WIFI
+  my_wifi_setup();
+
+  // DISPLAY
   // by default, we'll generate the high voltage from the 3.3v line internally! (neat!)
   display.begin(SSD1306_SWITCHCAPVCC);
   display.display();
@@ -64,30 +71,9 @@ void setup() {
 //------------------------------------------------------------
 void loop() {
   static bool serial_logging = false;
-  
-  // ===========
-  // handle wifi
-  bool wifi_connected = handleWifi();
-  if (wifi_connected) {
-    NTPSetup();
-  }
 
-  
-
-  // ==============
-  // input wifi pwd
-  if (Serial.available() > 0) {
-    String command = Serial.readStringUntil(10);
-    if (command.equals("wifi")) {
-      connectSerialWifi();
-    } else if (command.equals("log")) {
-      serial_logging = !serial_logging;
-    } else {
-      Serial.println("commands: ");
-      Serial.println("  wifi   : scan available wifi and select");
-      Serial.println("  log    : turn on/off serial logger");
-    }
-  }
+  my_wifi_handle() ;
+  serial_handle();
 
   // ===============
   // MHZ_19B readout
@@ -157,9 +143,9 @@ void loop() {
     
     display.println("" + getStrDate() +" "+ getStrTime());
     
-    if (isMyWifiConnected()) {
-      display.println("" + getMySSID());
-      display.println("" + getMyIPAdress());
+    if (my_wifi_isConnected()) {
+      display.println("" + my_wifi_getMySSID());
+      display.println("" + my_wifi_getMyIPAdress());
 
       // if warm and every minute : log to nas
       if ((!warming_up) && (tijd - last_naslog_time >  60000)) {
@@ -181,5 +167,80 @@ void loop() {
     last_meas_time = millis();
   }
 
+}
+
+//==========================================
+void serial_handle() {
+
+  enum serial_input {NO_INPUT = 0, WIFI_SSID, WIFI_PWD} ;
+  static enum serial_input input_on = NO_INPUT;
+  
+  static int number_of_networks = 0;
+  if (Serial.available() > 0) {
+    String command = Serial.readStringUntil(10);
+    static int wifi_selected_id = -1;
+
+    if (command.equals("wifi")) {
+      Serial.println("Scanning WiFi");
+      number_of_networks = my_wifi_scan();
+      for (int i = 0; i < number_of_networks; i++ ) {
+        Serial.println("" + String(i) + " " + my_wifi_get_scanned_ssid(i) + " " + String(my_wifi_get_scanned_rssi(i)));
+      }
+      input_on = WIFI_SSID;
+      Serial.println("SELECT SSID no");
+
+    } else if ( input_on == WIFI_SSID) {
+      wifi_selected_id = command.toInt();
+      if (number_of_networks > wifi_selected_id) {
+        Serial.print(" network selected " + String(wifi_selected_id));
+        Serial.println(" " + my_wifi_get_scanned_ssid(wifi_selected_id) + " " + String(my_wifi_get_scanned_rssi(wifi_selected_id)));
+        Serial.println("ENTER PASSWORD");
+        input_on = WIFI_PWD;
+      } else {
+        Serial.println(" not available");
+        my_wifi_add_scanned_ap(-1, "");
+        input_on = NO_INPUT;
+      }
+    } else if (input_on == WIFI_PWD) {
+      my_wifi_add_scanned_ap(wifi_selected_id, command);
+      Serial.println("----------");
+      Serial.println(" " + my_wifi_get_scanned_ssid(wifi_selected_id) + " - " + command);
+      Serial.println("----------");
+      input_on = NO_INPUT;
+      
+    } else if (command.equals("wlist")) {
+      Serial.println("----------");
+      Serial.println("Stored SSID + pwds : " + String(eeprom_getNoWifiAps()));
+      for (int i = 0; i < eeprom_getNoWifiAps(); i++) {
+        WifiApEE wifi_ap = eeprom_getWifiAp(i);
+        Serial.println(" " + String(i+1) + " : " + wifi_ap.ssid + " - " + wifi_ap.pwd);
+      }
+      Serial.println("----------");
+
+    } else if (command.equals("wclear")) {
+      Serial.println("clearing stored SSID + pwds");
+      my_wifi_clear_aps();
+      Serial.println("----------");
+      
+    } else if (command.equals("eepl")) {
+      eeprom_serial();
+    } else if (command.equals("eepc")) {
+      eeprom_clear();
+      eeprom_serial();
+    } else if (command.equals("time")) {
+      Serial.println(" " + getStrTime() + " " + getStrDate());
+    } else if (command.equals("restart")) {
+      ESP.restart();
+    } else  {
+      Serial.println("commands: ");
+      Serial.println("  wifi   : scan available wifi and select");
+      Serial.println("  wlist  : list stored ssid + pwd");
+      Serial.println("  wclear : clear stored ssid + pwd");
+      Serial.println("  eepl   : list eeprom stored data");
+      Serial.println("  eepc   : clear eeprom");
+      Serial.println("  time   : show time");
+      Serial.println("  restart: restart micro controller");
+    }
+  }
 
 }

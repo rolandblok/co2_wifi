@@ -1,38 +1,61 @@
+
+
+
 #include "my_wifi.h"
-#include "NASlog.h"
 
-
-#define WIFI_AP_SSID_MAX_LEN (33)
-#define WIFI_AP_PWD_MAX_LEN  (64)
-
-
-#include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
+
+#include "NTPtime.h"
+#include "my_eeprom.h"
+
+
 ESP8266WiFiMulti wifiMulti;
+boolean wifi_connected       = false;
+boolean wifi_set_connecting  = true;   // need to be able to stop for manual connecting.
 
-
-bool wifi_connected       = false;
-bool wifi_set_connecting  = true;   // need to be able to stop for manual connecting.
-
-bool isMyWifiConnected() {
+bool my_wifi_isConnected() {
   return wifi_connected;
 }
 
-String getMyIPAdress(){
+String my_wifi_getMyIPAdress(){
   return WiFi.localIP().toString();
 }
-String getMySSID() {
+String my_wifi_getMySSID() {
   return WiFi.SSID();
 }
+
+//================
+// setup functions
+
 /**
- * Try to connect to one of a couple of WiFi networks
- * return true if connected
+ * read WIFI_aps from eeprom, and load to the wifi app
  */
-bool handleWifi() {
+void my_wifi_setup() {
+  int no_wifi_apps = eeprom_getNoWifiAps();
   
+  for (int ap_nr = 0; ap_nr < no_wifi_apps; ap_nr++) {
+    
+    WifiApEE wifi_app = eeprom_getWifiAp(ap_nr);
+    
+    char ssid_buf[EEPC_WIFI_AP_SSID_MAX_LEN];
+    char pwd_buf[EEPC_WIFI_AP_PWD_MAX_LEN];
+    wifi_app.ssid.toCharArray(ssid_buf, EEPC_WIFI_AP_SSID_MAX_LEN);
+    wifi_app.pwd.toCharArray(pwd_buf, EEPC_WIFI_AP_PWD_MAX_LEN);
+    wifiMulti.addAP(ssid_buf, pwd_buf);
+  }
+  return;
+}
+
+
+//================
+// loop  functions
+
+// Try to connect to one of a couple of WiFi networks
+boolean my_wifi_handle() {
+
+
   //WiFi.status() == WL_connected;
   if (!wifi_connected) {
-  //if (WiFi.status() != WL_CONNECTED) { 
     static unsigned long last_update_ms = millis();
     unsigned long now_ms = millis();
     if (((now_ms - last_update_ms) > 3000) && (wifi_set_connecting)) {
@@ -41,82 +64,60 @@ bool handleWifi() {
       if (wifiMulti.run() == WL_CONNECTED ) {
         wifi_connected = true;
         Serial.println("SSID: " + WiFi.SSID() + "; IP address: " + WiFi.localIP().toString());
-        nasDBLogConnection();
       } else {
-        Serial.println(">>> WIFI connection failed");
+        Serial.println(" connection failed");
       }
-      
+
     }
-  }  
-  return wifi_connected;
+  } else {
+    NTPSetup();
+  }
+  
 }
 
 
 /**
- * blocking call, to use serial connection to select a wifi chanel. 
- * - first scan wifi network
- * - display option on serial
- * - wait for selection or break
- * - wait for password or break
- * - add network
+ * always let this follow with wifi_ap_add_wifi_ap, to enable wifi connecting again.
  */
-void connectSerialWifi() {
-  // find and print available networks
-  Serial.println("Scanning WiFi");
-  delay(1000);  // make sure the ESP is not doing wifi stuff
-  int number_of_networks = WiFi.scanNetworks();
-  for (int i = 0; i < number_of_networks; i++ ) {
-     Serial.println("" + String(i) + " " + WiFi.SSID(i) + " " + WiFi.RSSI(i));
+int my_wifi_scan() {
+  wifi_set_connecting = false; // disable connecting, otherwize it will overwrite scanned wifis
+  delay(1000);
+  return WiFi.scanNetworks();
+}
+
+String my_wifi_get_scanned_ssid(int i) {
+  return WiFi.SSID(i);
+}
+long my_wifi_get_scanned_rssi(int i) {
+  return WiFi.RSSI(i);
+}
+
+/**
+ * add an wifi ap, return true if succes/fits
+ *    if with NULL argument : just enables wifi scan again.
+ */
+boolean my_wifi_add_scanned_ap(int i, String pwd_str) {
+  if (i >= 0) {
+
+
+    eeprom_addWifiAp(WiFi.SSID(i), pwd_str);
+
+    char ssid_char[EEPC_WIFI_AP_SSID_MAX_LEN];
+    WiFi.SSID(i).toCharArray(ssid_char, EEPC_WIFI_AP_SSID_MAX_LEN);
+    char pwd_char[EEPC_WIFI_AP_PWD_MAX_LEN];
+    pwd_str.toCharArray(pwd_char, EEPC_WIFI_AP_PWD_MAX_LEN);
+
+    wifiMulti.addAP(ssid_char, pwd_char);
+   
+    eeprom_write();
   }
-  Serial.println("SELECT SSID no");
-
-  // wait for network selection, or break
-  int input_time_s = 0;  // block everything for 10 seconds to get wifi selection
-  while (Serial.available() <= 0) {
-    delay(1000); 
-    input_time_s += 1;
-    Serial.print(".");
-    if (input_time_s > 5) {
-      Serial.println("no input - quit.");
-      return; // we stop this, no input
-    }
-  }
-  Serial.println("");
-
-  // select and show network selection, ask pwd , or break
-  String command = Serial.readStringUntil(10);
-  long network_selected = command.toInt();  // this is not rubust, as non-valid return zero, which is valid.
-  if ((network_selected >= 0) && (network_selected < number_of_networks)) {
-    Serial.print(" network selected " + String(network_selected));
-    Serial.println(" " + WiFi.SSID(network_selected));
-    Serial.println("ENTER PASSWORD");
-  } else {
-    Serial.println(" not valid");
-    return; // we stop this, not valid
-  }
-
-  // wait for password, or break
-  input_time_s = 0;  // block everything for x seconds to get wifi selection
-  while (Serial.available() <= 0) {
-    delay(1000); 
-    input_time_s += 1;
-    Serial.print(".");
-    if (input_time_s > 5) {
-      Serial.println("no input - quit.");
-      return; // we stop this, no input
-    }
-  }
-  Serial.println("");
-
-  // set the new wifi in ESP.
-  String pwd = Serial.readStringUntil(10);
-  Serial.println(" " + pwd);
-  Serial.println("----------");
+  
+  wifi_set_connecting = true;
+  
+  return true;
+}
 
 
-  char ssid_buf[WIFI_AP_SSID_MAX_LEN];
-  char pwd_buf[WIFI_AP_PWD_MAX_LEN];
-  WiFi.SSID(network_selected).toCharArray(ssid_buf, WIFI_AP_SSID_MAX_LEN);
-  pwd.toCharArray(pwd_buf, WIFI_AP_PWD_MAX_LEN);
-  wifiMulti.addAP(ssid_buf, pwd_buf);
+void my_wifi_clear_aps() {
+  eeprom_clearWifiAps();
 }
