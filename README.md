@@ -1,5 +1,5 @@
 # co2_wifi
-arduino project to measure CO2 using MHZ_19B, and store data via ESP8266-WIFI
+Measure CO2 using MHZ_19B, esp8266, and store to database (NAS/Influxdb/grafana).
 
 ![](fotos/finished_project.jpg)
 
