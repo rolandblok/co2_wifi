@@ -2,6 +2,7 @@
 #include <SoftwareSerial.h>
 
 #include <SPI.h>
+#include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <TimeLib.h>  
@@ -22,22 +23,52 @@
   #define PIN_OLED_RESET  10    // RES
 */
 
-// https://randomnerdtutorials.com/esp8266-pinout-reference-gpios/
-#define PIN_MHZ_19_RX   4    // NODEMCU:D2   be aware connect Tx on MHZ19 itself!!
-#define PIN_MHZ_19_TX   15   // NODEMCU:D8 be aware connect Rx on MHZ19 itself!!
-// Using SPI on nodeMCU:
-//      PIN_OLED_MISO   12   // not used : [NODEMCU:D6] : fixed
-#define PIN_OLED_MOSI   13   // D1  : [NODEMCU:D7] : fixed
-#define PIN_OLED_CLK    14   // D0  : [NODEMCU:D5] :fixed
-#define PIN_OLED_DC     16   // DC  : [NODEMCU:D0] :free choice
-#define PIN_OLED_CS      5   // CS  : [NODEMCU:D1] :fixed
-#define PIN_OLED_RESET  10   // RES : [NODEMCU:SD3]: free choice
+//#define VERSION01_SPI 
+#define VERSION02_I2C
 
+// ====================== //
+// VERSION 01 : USING SPI //
+// ====================== //
+#if defined(VERSION01_SPI)
 
-// SW SPI:
-//Adafruit_SSD1306 display(PIN_OLED_MOSI, PIN_OLED_CLK, PIN_OLED_DC, PIN_OLED_RESET, PIN_OLED_CS);
-// HW SPI
-Adafruit_SSD1306 display(PIN_OLED_DC, PIN_OLED_RESET, PIN_OLED_CS);
+  // https://randomnerdtutorials.com/esp8266-pinout-reference-gpios/
+  #define PIN_MHZ_19_RX   4    // NODEMCU:D2   be aware connect Tx on MHZ19 itself!!
+  #define PIN_MHZ_19_TX   15   // NODEMCU:D8 be aware connect Rx on MHZ19 itself!!
+
+  // Using SPI on nodeMCU:
+  //      PIN_OLED_MISO   12   // not used : [NODEMCU:D6] : fixed
+  #define PIN_OLED_MOSI   13   // D1  : [NODEMCU:D7] : fixed
+  #define PIN_OLED_CLK    14   // D0  : [NODEMCU:D5] :fixed
+  #define PIN_OLED_DC     16   // DC  : [NODEMCU:D0] :free choice
+  #define PIN_OLED_CS      5   // CS  : [NODEMCU:D1] :fixed
+  #define PIN_OLED_RESET  10   // RES : [NODEMCU:SD3]: free choice
+  
+  // SW SPI:
+  //Adafruit_SSD1306 display(PIN_OLED_MOSI, PIN_OLED_CLK, PIN_OLED_DC, PIN_OLED_RESET, PIN_OLED_CS);
+  // HW SPI
+  Adafruit_SSD1306 display(PIN_OLED_DC, PIN_OLED_RESET, PIN_OLED_CS);
+
+#endif
+
+// ====================== //
+// VERSION 02 : USING I2C //
+// ====================== //
+#if defined(VERSION02_I2C)
+
+  // https://randomnerdtutorials.com/esp8266-pinout-reference-gpios/
+  #define PIN_MHZ_19_RX   13   // NODEMCU:D7   be aware connect Tx on MHZ19 itself!!
+  #define PIN_MHZ_19_TX   15   // NODEMCU:D8 be aware connect Rx on MHZ19 itself!!
+  // Using I2C on nodeMCU: https://randomnerdtutorials.com/esp8266-0-96-inch-oled-display-with-arduino-ide/
+  // D1 : SCL
+  // D2 : SDA
+  #define PIN_OLED_RESET -1
+  
+  // I2C
+  #define SCREEN_WIDTH 128 // OLED display width, in pixels
+  #define SCREEN_HEIGHT 64 // OLED display height, in pixels
+  Adafruit_SSD1306 display(PIN_OLED_RESET);
+
+#endif
 
 // ====================
 // interface to mhz-19b

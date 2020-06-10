@@ -7,6 +7,7 @@
 
 #include "NTPtime.h"
 #include "my_eeprom.h"
+#include "NASlog.h"
 
 
 ESP8266WiFiMulti wifiMulti;
@@ -71,6 +72,7 @@ boolean my_wifi_handle() {
     }
   } else {
     NTPSetup();
+    influxDBsetup(WiFi.SSID(), WiFi.localIP().toString(), WiFi.RSSI());
   }
   
 }

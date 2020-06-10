@@ -2,6 +2,7 @@
 #include "NASlog.h"
 
 #include <ESP8266WiFi.h>
+#include <InfluxDb.h>
 #include "NTPtime.h"
 
 
@@ -9,26 +10,9 @@ bool SERIAL_DEBUG = true;
 
 const char* db_host = "192.168.1.100";   // NAS - dataseba
 
-WiFiServer data_server(1234);
-
 bool wifiDBSend(String params);
  
 
-/**
- * Log a connection to the network
- */
-bool nasDBLogConnection() {
-   return wifiDBSend("connect_log.php?who=co2logger");
-}
-
-bool nasDBLogCO2(String kamer, int co2_ppm, int temperature){
-
-   String arg_kamer = "kamer=" + String(kamer);
-   String arg_tijd = "tijd=" + getStrDate() +"%20"+ getStrTime();
-   String arg_co2 = "co2=" + String(co2_ppm);
-   String arg_temp = "temp=" + String(temperature);
-   return wifiDBSend("log_co2.php?"+arg_kamer +"&"+ arg_tijd+"&"+arg_co2+"&"+arg_temp);
-}
 
 
 /**
@@ -78,4 +62,74 @@ bool wifiDBSend(String params) {
 
   
   return success;
+}
+
+/**
+ * INFLUX version
+ *    needs influx db from tobias installed in arduino IDE
+ *   create database: https://docs.influxdata.com/influxdb/v1.8/introduction/get-started/
+ *   arduino clinet : https://github.com/tobiasschuerg/InfluxDB-Client-for-Arduino
+ */
+ 
+// InfluxDB server url, e.g. http://192.168.1.48:8086 (don't use localhost, always server name or ip address)
+#define INFLUXDB_URL "http://192.168.1.227:8086"
+// InfluxDB database name 
+#define INFLUXDB_DB_NAME "co2_db"
+
+bool influx_connected = false;
+
+// Single InfluxDB instance
+InfluxDBClient client(INFLUXDB_URL, INFLUXDB_DB_NAME);
+
+bool influxDBsetup(String ssid, String ip_adr, long rssi) {
+
+  if (!influx_connected) {
+    
+    client.setConnectionParamsV1(INFLUXDB_URL, INFLUXDB_DB_NAME);
+    
+    if (client.validateConnection()) {
+
+      Serial.print("Connected to InfluxDB: ");
+      Serial.println(client.getServerUrl());
+
+      Point influx_point_co2_connect("co2_connect");
+      influx_point_co2_connect.addTag("device", "co2_1");
+      influx_point_co2_connect.addTag("kamer", "computer");
+      influx_point_co2_connect.addTag("SSID", ssid);
+      influx_point_co2_connect.addField("ip", ip_adr);
+      influx_point_co2_connect.addField("rssi", rssi);
+      client.writePoint(influx_point_co2_connect);
+
+      influx_connected = true;
+    } else {
+      Serial.print("InfluxDB connection failed: ");
+      Serial.println(client.getLastErrorMessage());
+    }
+
+  }
+  return influx_connected;
+}  
+
+
+/**
+ * Log a connection to the network
+ */
+bool nasDBLogConnection() {
+   return wifiDBSend("connect_log.php?who=co2logger");
+}
+
+bool nasDBLogCO2(String kamer, int co2_ppm, int temperature){
+
+   String arg_kamer = "kamer=" + String(kamer);
+   String arg_tijd = "tijd=" + getStrDate() +"%20"+ getStrTime();
+   String arg_co2 = "co2=" + String(co2_ppm);
+   String arg_temp = "temp=" + String(temperature);
+   return wifiDBSend("log_co2.php?"+arg_kamer +"&"+ arg_tijd+"&"+arg_co2+"&"+arg_temp);
+
+  Point influx_point_co2_data("co2_data");
+  influx_point_co2_data.addTag("kamer", String(kamer));
+  influx_point_co2_data.addField("temperature", temperature);
+  influx_point_co2_data.addField("co2_ppm", co2_ppm);
+  client.writePoint(influx_point_co2_data);
+   
 }
